@@ -1,0 +1,23 @@
+/*.axis--x path {*/
+    /*display: none;*/
+/*}*/
+
+.red {
+    fill: none;
+    stroke: red;
+    stroke-width: 1.5px;
+}
+
+.blue {
+    fill: none;
+    stroke: steelblue;
+    stroke-width: 1.5px;
+}
+
+.chart {
+    display: inline-block
+}
+
+.chart h4 {
+    text-align: center;
+}

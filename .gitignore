@@ -1,0 +1,7 @@
+node_modules
+config
+.idea
+dist
+*.log
+*.zip
+all.sql
