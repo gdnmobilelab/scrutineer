@@ -1,6 +1,7 @@
 import React from 'react';
 import ReactDOM from 'react-dom';
-import update from 'immutability-helper';
+import { Notification, AndroidCollapsedNotification, IOSCollapsedNotification } from './components/notification';
+import ScrutineerService from './services/scrutineer-service';
 
 const jsonFetch = require('../../../shared-utils/json-request');
 const createNotification = require('../../../shared-utils/create-notification');
@@ -8,19 +9,39 @@ const classnames = require('classnames');
 const deepcopy = require("deepcopy");
 const Cookies = require('cookies-js');
 const moment = require('moment-timezone');
+const CONSTANTS = require('./constants');
+
+const CLINTON_DEFAULT_IMAGE = CONSTANTS.CLINTON_DEFAULT_IMAGE;
+const TRUMP_DEFAULT_IMAGE = CONSTANTS.TRUMP_DEFAULT_IMAGE;
+const CANDIDATE_IMAGES = {
+    CLINTON: [
+        CLINTON_DEFAULT_IMAGE,
+        {
+            key: 'Clinton Cheer',
+            image: 'https://www.gdnmobilelab.com/candidates/clinton-cheer-resized-1.png'
+        }
+    ],
+    TRUMP: [
+        TRUMP_DEFAULT_IMAGE,
+        {
+            key: 'Trump Cheer',
+            image: 'https://www.gdnmobilelab.com/candidates/trump-cheer-resized-1.png'
+        }
+    ]
+};
 
 const exampleNotificationData = {
     id: "6b632ded-c29e-4c3a-bd3d-1b8902ce3732",
     sentAt: "2016-10-21T18:37:15.000Z",
     CLINTON: {
-        electoralVotes: 246,
+        electoralVotes: 80,
         popularVotePercentage: 40.56
     },
     TRUMP: {
-        electoralVotes: 292,
+        electoralVotes: 64,
         popularVotePercentage: 40.82
     },
-    percentageOfPrecinctsReporting: 99,
+    percentageOfPrecinctsReporting: 30,
     statesCalled: ['08'],
     swingStatesCalled: ['OH', 'FL', 'CO']
 };
@@ -30,12 +51,9 @@ const SUBMISSION_MESSAGES = {
 };
 const REFRESH_TIMEOUT = 1000 * 10; //Minute refresh rate on new notifications
 
-function createExampleNotificationWithModifications(modifications) {
-    var exampleNotification = Object.assign({}, createNotification(exampleNotificationData.id, exampleNotificationData, modifications), {sentAt: '2016-10-24T14:35:22.000Z'});
-    exampleNotification.message = '• 270 electoral votes to win\n' + exampleNotification.message;
-
-    return exampleNotification;
-}
+var createExampleNotificationWithModifications = function (modifications) {
+    return Object.assign({}, createNotification(exampleNotificationData.id, exampleNotificationData, modifications || {}), {sentAt: '2016-10-24T14:35:22.000Z'});
+};
 
 class Scrutineer extends React.Component {
     constructor() {
@@ -50,12 +68,14 @@ class Scrutineer extends React.Component {
                 line2: null,
                 line3: null,
                 line4: null,
-                line5: null,
+                iOSCollapsed1: null,
+                iOSCollapsed2: null,
+                androidCollapsed: null,
+                clintonAvatar: null,
+                trumpAvatar: null,
                 buzzOnce: false,
             },
-            exampleNotification: {
-                notification: createExampleNotificationWithModifications({}) //sentAt will be used later on
-            },
+            exampleNotification: createExampleNotificationWithModifications(),
             submitting: false,
             submitted: false,
             submittedSuccess: true,
@@ -93,11 +113,16 @@ class Scrutineer extends React.Component {
             .then((resp) => {
                 let notificationForm = Object.assign({}, this.state.notificationForm, resp.modifications);
 
+                // Switch up the example modification creator with real notifcation if it exists
+                if (resp.notification) {
+                    createExampleNotificationWithModifications = function (modifications) {
+                        return Object.assign({}, createNotification(resp.notification.id, JSON.parse(resp.notification.notificationDataJson), modifications || {}), {sentAt: resp.notification.sentAt});
+                    };
+                }
+
                 this.setState({
+                    exampleNotification: createExampleNotificationWithModifications(resp.modifications),
                     notifications: resp.notifications,
-                    exampleNotification: {
-                        notification: createExampleNotificationWithModifications(notificationForm)
-                    },
                     notificationForm: Object.assign({}, notificationForm, { buzzOnce: false }) //buzOnce should always be false no matter what
                 })
             });
@@ -105,37 +130,31 @@ class Scrutineer extends React.Component {
         this.refreshResultsOnInterval();
     }
 
-    onSubmit(e) {
+    onSubmit(e, sendNotification) {
         e.preventDefault();
+
         this.setState({
             submitting: true
         });
 
         var toSubmit = Object.assign({}, this.state.notificationForm);
 
-        Object.keys(toSubmit).forEach((key) => {
-            //Don't submit empty strings! It's invalid!
-            if (typeof toSubmit[key] === 'string' && toSubmit[key].length < 1) {
-                toSubmit[key] = null;
-            }
-        });
-
         let cookieOpts = { expires: 10 };
-        jsonFetch(`${CONFIG.API_URL}/api/notifications/modifications`, {
-            method: 'POST',
-            body: JSON.stringify(toSubmit),
-            headers: {
-                'Content-Type': 'application/json'
-            }
-        }).then((res) => {
-            console.log(res);
-            Cookies.set('submitted', 'success', cookieOpts);
-            location.reload();
-        }).catch((err) => {
-            console.log(err);
-            Cookies.set('submitted', 'error', cookieOpts);
-            location.reload();
-        })
+        ScrutineerService.createModification(toSubmit, sendNotification)
+            .then((res) => {
+                console.log(res);
+                Cookies.set('submitted', 'success', cookieOpts);
+                location.reload();
+            }).catch((err) => {
+                console.log(err);
+                this.setState({
+                    submitted: true,
+                    submitting: false,
+                    submittedSuccess: false
+                });
+                // Cookies.set('submitted', 'error', cookieOpts);
+                // location.reload();
+            })
     }
 
     onFormChange(attr, value) {
@@ -143,10 +162,17 @@ class Scrutineer extends React.Component {
 
         this.setState({
             notificationForm: notificationForm,
-            exampleNotification: {
-                notification: createExampleNotificationWithModifications(notificationForm),
-            }
+            exampleNotification: createExampleNotificationWithModifications(notificationForm),
         })
+    }
+
+    onCandidateImageChange(attr, candidateImage) {
+        if (candidateImage.image === CLINTON_DEFAULT_IMAGE.image
+            || candidateImage.image === TRUMP_DEFAULT_IMAGE.image) {
+            this.onFormChange(attr, null);
+        } else {
+            this.onFormChange(attr, candidateImage.image);
+        }
     }
 
     removeAdminNotifier() {
@@ -178,55 +204,15 @@ class Scrutineer extends React.Component {
                 <div className="container">
                     <div className="row">
                         <NotificationForm submitting={this.state.submitting}
-                                          exampleNotification={this.state.exampleNotification.notification}
+                                          exampleNotification={this.state.exampleNotification}
                                           form={this.state.notificationForm}
                                           onSubmit={this.onSubmit.bind(this)}
                                           onChange={this.onFormChange.bind(this)}
-                                          className="col-xs-6" />
-                        <NotificationsSent
-                            notifications={this.state.notifications}
-                            limit={this.state.notificationsLimit}
-                            className="col-xs-6" />
+                                          onCandidateImageChange={this.onCandidateImageChange.bind(this)}
+                                          className="col-xs-12" />
                     </div>
                 </div>
                 {notification}
-            </div>
-        )
-    }
-}
-
-class NotificationsSent extends React.Component {
-    render() {
-        var sentNotifications = this.props.notifications.slice(0, this.props.limit).map((notification) => {
-            return (<Notification key={notification.id} notification={notification} />)
-        });
-
-        return (
-            <div className={this.props.className}>
-                <div className="well bs-component notifications-sent">
-                    <h3>Sent Notifications</h3>
-                    <div className="notifications-list">
-                        {sentNotifications}
-                    </div>
-                </div>
-            </div>
-        )
-    }
-}
-
-class Notification extends React.Component {
-    render() {
-        var classes = classnames(this.props.className, 'card');
-
-        return (
-            <div className={classes}>
-                <strong>{this.props.notification.title}</strong>
-                <p>{this.props.notification.message.split("\n").map((notification, index) => {
-                    return (
-                        <span key={`${this.props.notification.id}-${index}`}>{notification}<br /></span>
-                    )
-                })}</p>
-                <p className="notification-sent-at">{moment.utc(this.props.notification.sentAt).format("dddd, h:mm:ss a")}</p>
             </div>
         )
     }
@@ -240,20 +226,76 @@ class NotificationForm extends React.Component {
 
         return (
             <div className={this.props.className}>
-                <form onSubmit={this.props.onSubmit} className="clearfix">
-                    <Input onChange={this.props.onChange} attr="title" label="Title" value={this.props.form['title']} />
-                    <Input onChange={this.props.onChange} attr="line2" label="Line #2" value={this.props.form['line2']} />
-                    <Input onChange={this.props.onChange} attr="line3" label="Line #3" value={this.props.form['line3']} />
-                    <Input onChange={this.props.onChange} attr="line4" label="Line #4" value={this.props.form['line4']} />
-                    <Input onChange={this.props.onChange} attr="line5" label="Line #5" value={this.props.form['line5']} />
-                    <Checkbox onChange={this.props.onChange} className="buzz-checkbox" label="Buzz on the next notification" value={this.props.form['buzzOnce']} attr="buzzOnce" />
-                    <button disabled={isDisabled} type="submit" className="btn btn-primary notification-form-submit">{loading}Save</button>
-                </form>
-                <div className="well bs-component example-notification">
-                    <h3>Example</h3>
-                    <div className="notifications-list">
-                        <Notification notification={this.props.exampleNotification} />
+                <div className="col-xs-6">
+                    <form className="clearfix">
+                        <legend>General</legend>
+                        <Input onChange={this.props.onChange} attr="title" label="Title" value={this.props.form['title']} />
+                        <Input onChange={this.props.onChange} attr="line1" label="Line #1" value={this.props.form['line1']} />
+                        <Input onChange={this.props.onChange} attr="line2" label="Line #2" value={this.props.form['line2']} />
+                        <Input onChange={this.props.onChange} attr="line3" label="Line #3" value={this.props.form['line3']} />
+                        <Input onChange={this.props.onChange} attr="line4" label="Line #4" value={this.props.form['line4']} />
+                        <Checkbox onChange={this.props.onChange} className="buzz-checkbox" label="Buzz on the next notification" value={this.props.form['buzzOnce']} attr="buzzOnce" />
+
+                        <legend>Android</legend>
+                        <Input onChange={this.props.onChange} attr="androidCollapsed1" label="Collapsed text" value={this.props.form['androidCollapsed1']} />
+                        <CandidateImageSelector
+                            attr="clintonAvatar"
+                            onChange={this.props.onCandidateImageChange}
+                            label="Clinton Icon"
+                            selected={this.props.form['clintonAvatar'] || CLINTON_DEFAULT_IMAGE.image}
+                            images={CANDIDATE_IMAGES.CLINTON}
+                        />
+                        <CandidateImageSelector
+                            attr="trumpAvatar"
+                            onChange={this.props.onCandidateImageChange}
+                            label="Trump Icon"
+                            images={CANDIDATE_IMAGES.TRUMP}
+                            selected={this.props.form['trumpAvatar'] || TRUMP_DEFAULT_IMAGE.image}
+                        />
+
+                        <legend>iOS</legend>
+                        <Input onChange={this.props.onChange} attr="iOSCollapsed1" label="Collapsed text - Line #1" value={this.props.form['iOSCollapsed1']} />
+                        <Input onChange={this.props.onChange} attr="iOSCollapsed2" label="Collapsed text - Line #2" value={this.props.form['iOSCollapsed2']} />
+
+                        <button onClick={(e) => this.props.onSubmit.call(this, e, false)} disabled={isDisabled} type="button" className="btn btn-primary notification-form-submit">{loading}Save Modification</button>
+                        <button onClick={(e) => this.props.onSubmit.call(this, e, true)} style={{'marginLeft': '5px'}} disabled={isDisabled} type="button" className="btn btn-danger notification-form-submit">{loading}Save Modification & Resend</button>
+                    </form>
+                </div>
+                <div className="col-xs-6">
+                    <div className="well bs-component example-notification">
+                        <div className="notifications-list">
+                            <h3>Android</h3>
+                                <AndroidCollapsedNotification notification={this.props.exampleNotification} />
+                                <Notification notification={this.props.exampleNotification} />
+                            <h3>iOS</h3>
+                            <IOSCollapsedNotification notification={this.props.exampleNotification} />
+                            <Notification notification={this.props.exampleNotification} />
+                        </div>
                     </div>
+                </div>
+            </div>
+        )
+    }
+}
+
+class CandidateImageSelector extends React.Component {
+    render() {
+        var candidateImages = this.props.images.map((candidateImage) => {
+            var candidateImageClass = classnames('candidate-image', {'selected': candidateImage.image === this.props.selected});
+
+            return (
+                <div key={candidateImage.key} className={candidateImageClass} onClick={this.props.onChange.bind(this, this.props.attr, candidateImage)}>
+                    <img src={candidateImage.image} />
+                    <div className="image-desc">{candidateImage.key}</div>
+                </div>
+            )
+        });
+
+        return (
+            <div className="form-group">
+                <label>{this.props.label}</label>
+                <div>
+                    {candidateImages}
                 </div>
             </div>
         )

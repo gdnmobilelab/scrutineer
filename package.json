@@ -6,9 +6,12 @@
   "scripts": {
     "package": "zip -r scrutineer.zip . --exclude=*node_modules* --exclude=*.idea* --exclude=*.git*",
     "deployToStaging": "grunt build && npm run package && scp scrutineer.zip gdn-stage:~/",
-    "start-server": "(NODE_ENV=stage PORT=3001 node scrutineer-app/bin/www > scrutineer.log 2>&1 &)",
-    "start-results": "(NODE_ENV=stage node scrutineer-app/scrutineer-results/index > results.log 2>&1 &)",
+    "start-server": "NODE_ENV=stage PORT=3001 forever start scrutineer-app/bin/www",
+    "stop-server": "forever stop scrutineer-app/bin/www",
+    "start-results": "NODE_ENV=stage forever start scrutineer-app/scrutineer-results/index.js",
+    "stop-results": "forever stop scrutineer-app/scrutineer-results/index.js",
     "start-all": "npm run start-server && npm run start-results",
+    "stop-all": "npm run stop-server && npm run stop-results",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "author": "",

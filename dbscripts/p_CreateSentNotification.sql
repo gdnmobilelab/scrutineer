@@ -7,6 +7,7 @@ DELIMITER $$
         IN p_trump_popular_vote_percentage DECIMAL(5, 2),
         IN p_percent_precincts_reporting_percentage DECIMAL(5, 2),
         IN p_num_states_called BIGINT,
+        IN p_notification_data_json JSON,
         IN p_sent_notification_json JSON,
         IN p_notification_modifications_id VARCHAR(36)
     )
@@ -28,10 +29,10 @@ DELIMITER $$
 
             insert into sent_notifications (id, clinton_electoral_vote, trump_electoral_vote,
                     clinton_popular_vote_percentage, trump_popular_vote_percentage, percent_precincts_reporting_percentage,
-                    num_states_called, sent_notification_json, notification_modifications_id, active)
+                    num_states_called, notification_data_json, sent_notification_json, notification_modifications_id, active)
                 values (p_id, p_clinton_electoral_vote, p_trump_electoral_vote,
                     p_clinton_popular_vote_percentage, p_trump_popular_vote_percentage, p_percent_precincts_reporting_percentage,
-                    p_num_states_called, P_sent_notification_json, p_notification_modifications_id, true);
+                    p_num_states_called, p_notification_data_json, p_sent_notification_json, p_notification_modifications_id, true);
 
             select buzz_once from notification_modifications nm where nm.active = true into should_buzz;
 

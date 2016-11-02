@@ -1,13 +1,13 @@
+#scrutineer-anchor {
+  margin-bottom: 20px;
+}
+
 .well > h3 {
   margin: 0;
 }
 
-.notifications-list {
-  margin-top: 15px;
-}
-
-.notification-form-submit {
-  float: right;
+.notifications-list h3:first-child {
+  margin-top: 0;
 }
 
 .example-notification {
@@ -46,4 +46,49 @@
 
 .buzz-checkbox {
   margin-top: 25px;
+}
+
+.candidate-image {
+  display: inline-block;
+  text-align: center;
+  margin-top: 5px;
+  cursor: pointer;
+  padding: 5px;
+  opacity: 0.8;
+}
+
+.candidate-image.selected {
+  border: 1px solid red;
+  opacity: 1;
+}
+
+.candidate-image .image-desc {
+  font-size: 10px;
+}
+
+.candidate-image img {
+  height: auto;
+  width: 30%;
+}
+
+.chart {
+  width: 100%;
+}
+
+.balance-of-power {
+  margin: 10px 0;
+}
+
+.avatar {
+  display: inline-block;
+  width: 50%;
+}
+
+.avatar img {
+  height: auto;
+  width: 15%;
+}
+
+.trump-avatar {
+  text-align: right;
 }

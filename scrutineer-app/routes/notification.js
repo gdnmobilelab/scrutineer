@@ -4,16 +4,15 @@ const DB = require('../services/db');
 const createNotification = require('../shared-utils/create-notification');
 const CONFIG = require('../config');
 const uuid = require('node-uuid');
+const sendNotification = require('../services/send-notification');
+const log = require('../services/logger');
 
 /* GET home page. */
 router.get('/', function(req, res, next) {
-    return DB.getSentNotificationsAndNotificationModification().then((sentNotificationsData) => {
+    return DB.getNotificationModificationAndLastSent().then(({modifications, notification}) => {
         return res.send({
-            notifications: sentNotificationsData.notifications.map((sent) => {
-                // return createNotification(sent.id, sent, CONFIG.SWING_STATES, {});
-                return Object.assign({}, JSON.parse(sent.sentNotificationJson), { sentAt: sent.sentAt });
-            }),
-            modifications: sentNotificationsData.modifications
+            modifications: modifications,
+            notification: notification
         });
     }).catch((err) => {
         console.log(err);
@@ -44,11 +43,49 @@ router.post('/modifications', function(req, res, next) {
         })
     }
 
+    //Hm, would be nice to crunch these DB calls into one
     DB.saveNotificationModification(modification).then(() => {
+        //Todo: does express convert "true" to true?
+        if (req.query.send === true || req.query.send === "true") {
+            return DB.getLastSentNotification().then((notification) => {
+                var notificationData = JSON.parse(notification.notificationDataJson),
+                    toSendId = uuid.v4(),
+                    toSend = createNotification(toSendId, notificationData, modification);
+
+                return DB.saveSentNotification(toSendId, notificationData, toSend, modification.id).then((buzzOnce) => {
+                    if (buzzOnce) {
+                        notification.importance = 'Major'
+                    }
+
+                    log(`Sending notification manually: ${JSON.stringify(notification)}`);
+
+                    var sent = CONFIG.SEND_NOTIFICATIONS ? sendNotification(notification) : Promise.resolve({
+                        success: true,
+                        notificationSent: false,
+                        reason: 'Modification saved and configuration set to not send notifications'
+                    });
+                    return sent
+                        .then((result) => {
+                            return {
+                                success: true,
+                                notificationSent: true,
+                                reason: 'Modification saved and notification sent'
+                            }
+                        })
+                });
+            })
+        } else {
+            return {
+                success: true,
+                notificationSent: false,
+                reason: 'Modification saved'
+            }
+        }
+    }).then((result) => {
         res.status(200);
         res.send({
-            success: true,
-            msg: 'Modification submitted successfully'
+            success: result.success,
+            msg: result.reason
         })
     }).catch((err) => {
         res.status(500);

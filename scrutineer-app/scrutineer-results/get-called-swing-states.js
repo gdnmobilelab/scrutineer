@@ -10,6 +10,6 @@ module.exports = function(statesCalled, swingStates) {
     }).map((swingStateFipsCode) => {
         return swingStates.find((swingState) => {
             return swingState.fipsCode === swingStateFipsCode
-        }).alpha
+        })
     });
 };

@@ -1,36 +1,50 @@
 const numeral = require('numeral');
-const PERCENTAGE_FORMAT = '00.00';
+const PERCENTAGE_FORMAT = '00';
 
 module.exports = function(id, notificationData, modifications) {
         let percentageOfPrecinctsReporting = notificationData.percentageOfPrecinctsReporting,
             clinton = notificationData.CLINTON,
             trump = notificationData.TRUMP,
-            title = modifications.title || `Clinton: ${clinton.electoralVotes}, Trump ${trump.electoralVotes}`,
-            swingStatesText = notificationData.swingStatesCalled.length > 0 ? ` (${notificationData.swingStatesCalled.join(', ').trim()})` : '',
-            statesPlural = notificationData.statesCalled.length === 1 ? 'state' : 'states',
-            swingStatesPlural = notificationData.swingStatesCalled.length === 1 ? 'state' : 'states',
+            title = modifications.title || 'Live presidential election results',
+            statesWithoutDC = notificationData.statesCalled.filter((code) => code !== '11'),
+            isDCCalled = notificationData.statesCalled.find((code) => code === '11') ? true : false,
+            importantSwingStates = notificationData.swingStatesCalled.filter((swingState) => !!swingState.important),
+            importantSwingStatesCodes = importantSwingStates.map((important) => important.alpha),
+            importantSwingStatesText =  notificationData.swingStatesCalled.length - importantSwingStatesCodes.length > 3 ? ` (incl. ${importantSwingStatesCodes.join(', ').trim()})` : '',
+            swingStatesPlural = notificationData.swingStatesCalled.length === 1 ? `${notificationData.swingStatesCalled.length} is a swing state` : `${notificationData.swingStatesCalled.length} are swing states${importantSwingStatesText}`,
+            statesPlural = statesWithoutDC.length === 1 ? 'state' : 'states',
+            calledText = isDCCalled ? `${statesWithoutDC.length} ${statesPlural} called + DC` : `${statesWithoutDC.length} ${statesPlural} called`,
             notificationMessage = [
-                modifications.line2 ? `• ${modifications.line2}` : `• ${notificationData.statesCalled.length} ${statesPlural} called`,
-                modifications.line3 ? `• ${modifications.line3}` : `• ${notificationData.swingStatesCalled.length} swing ${swingStatesPlural} called${swingStatesText}`,
+                modifications.line1 ? `• ${modifications.line1}` : `• ${calledText}`,
+                modifications.line2 ? `• ${modifications.line2}` : `• ${swingStatesPlural}`,
+                modifications.line3 ? `• ${modifications.line3}` : `• ${percentageOfPrecinctsReporting}% precincts reporting`,
                 modifications.line4 ? `• ${modifications.line4}` : `• Popular vote: Clinton ${numeral(clinton.popularVotePercentage).format(PERCENTAGE_FORMAT)}%, Trump ${numeral(trump.popularVotePercentage).format(PERCENTAGE_FORMAT)}%`,
-                modifications.line5 ? `• ${modifications.line5}` : `• ${percentageOfPrecinctsReporting}% precincts reporting`
-            ].join("\n");
+            ],
+            iosCollapsedMessage = [
+                modifications.iOSCollapsed1 ? `• ${modifications.iOSCollapsed1}` : `• Electoral votes: Clinton ${clinton.electoralVotes}, Trump ${trump.electoralVotes}`,
+                modifications.iOSCollapsed2 ? `• ${modifications.iOSCollapsed2}` : `• 270 electoral votes to win`
+            ].concat(notificationData.statesCalled.length === 0 ? notificationMessage.slice(2) : notificationMessage.slice(0, 1)), //Switch lines depending on if states reporting
+            androidCollapsedMessage = modifications.androidCollapsed1 ? `${modifications.androidCollapsed1}` : `Electoral votes: Clinton ${clinton.electoralVotes}, Trump ${trump.electoralVotes}`,
+            trumpAvatar = modifications.trumpAvatar ? modifications.trumpAvatar : 'https://www.gdnmobilelab.com/candidates/trump-normal-resized.png',
+            clintonAvatar = modifications.clintonAvatar ? modifications.clintonAvatar : 'https://www.gdnmobilelab.com/candidates/clinton-normal-resized.png';
 
     return {
         "id": id,
         "type": "election",
         "sender": "us-elections-service",
         "title": title,
-        "message": notificationMessage,
+        "expandedMessage": notificationMessage.join('\n'), //for both Android and iOS, shown along with graph
+        "message": iosCollapsedMessage.join('\n'), //shown on iOS when collapsed
+        "shortMessage": androidCollapsedMessage, //shown on Android when collapsed
         "importance": "Minor",
         "link": {
-            "contentApiId": "live-blog/content-api/id",
-            "shortUrl": "http://gu.com/p/4p7xt",
+            "contentApiId": "us-news/live/2016/nov/01/donald-trump-russia-hillary-clinton-emails-campaign-live",
+            "shortUrl": "https://www.theguardian.com/us-news/live/2016/nov/01/donald-trump-russia-hillary-clinton-emails-campaign-live",
             "git": {"mobileAggregatorPrefix": "item-trimmed"}
         },
         "resultsLink": {
-            "contentApiId": "live-blog/content-api/id",
-            "shortUrl": "http://gu.com/p/586tz",
+            "contentApiId": "us-news/live/2016/nov/01/donald-trump-russia-hillary-clinton-emails-campaign-live",
+            "shortUrl": "https://www.theguardian.com/us-news/live/2016/nov/01/donald-trump-russia-hillary-clinton-emails-campaign-live",
             "git": {"mobileAggregatorPrefix": "item-trimmed"}
         },
         "results": {
@@ -40,7 +54,7 @@ module.exports = function(id, notificationData, modifications) {
                     "states": [],
                     "electoralVotes": clinton.electoralVotes,
                     "popularVotes": clinton.popularVotes,
-                    "avatar": "http://avatar-url",
+                    "avatar": clintonAvatar,
                     "color": "#005689"
                 },
                 {
@@ -48,7 +62,7 @@ module.exports = function(id, notificationData, modifications) {
                     "states": [],
                     "electoralVotes": trump.electoralVotes,
                     "popularVotes": trump.popularVotes,
-                    "avatar": "http://avatar-url",
+                    "avatar": trumpAvatar,
                     "color": "#d61d00"
                 }
             ]

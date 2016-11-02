@@ -20,7 +20,6 @@ function pollResults() {
                 lastNotificationSentData = dateLastSentAndModifications.lastSent,
                 notificationModifications = dateLastSentAndModifications.modifications || {};
 
-                console.log(ourTimestamp);
             log(`ourTimestamp: ${ourTimestamp}, theirTimestamp: ${theirTimestamp}`);
 
             //If we don't have a timestamp, don't do anything
@@ -30,6 +29,8 @@ function pollResults() {
                     notificationSent: false,
                     reason: 'Timestamps are identical'
                 });
+            } else if (!theirTimestamp) {
+                return Promise.error(new Error('Could not fetch timestamp from last-updated.json'));
             } else {
                 //Our timestamps differ, mark this timestamp as the last timestamp
                 return db.saveDate(theirTimestamp)
@@ -41,7 +42,7 @@ function pollResults() {
                         let presidentialResults = overallSnapshot['p'],
                             usSnapshot = presidentialResults['US'],
                             statesCalled = getCalledStates(presidentialResults),
-                            swingStatesCalled = getCalledSwingStates(statesCalled, CONFIG.SWING_STATES)
+                            swingStatesCalled = getCalledSwingStates(statesCalled, CONFIG.SWING_STATES);
 
                         log(`Number of states called: ${statesCalled.length}`);
                         //Format our US election results
@@ -69,10 +70,9 @@ function pollResults() {
                                                 currentNotificationData,
                                                 notificationModifications);
 
-                            console.log('Sending');
                             return db.saveSentNotification(id, currentNotificationData, notification, notificationModifications.id).then((buzzOnce) => {
-                                //If we should buzz, modify the importance
-                                if (buzzOnce) {
+                                //Buzz the first time we send and buzz for all future notifications
+                                if (!ourTimestamp || buzzOnce) {
                                     notification.importance = 'Major'
                                 }
 

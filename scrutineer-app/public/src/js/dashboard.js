@@ -1,7 +1,8 @@
 import React from 'react';
 import ReactDOM from 'react-dom';
 import update from 'immutability-helper';
-import * as d3 from "d3";
+import * as d3 from 'd3';
+import { Notification } from './components/notification';
 
 const classnames = require('classnames');
 const jsonFetch = require('../../../shared-utils/json-request');
@@ -13,14 +14,13 @@ class D3LineChart extends React.Component {
     constructor() {
         super();
 
-        this.margin = {top: 20, right: 20, bottom: 30, left: 50}
+        this.margin = {top: 20, right: 20, bottom: 30, left: 20}
     }
 
     updateGraph(lineData) {
         this.d3SVG.selectAll('*').remove();
         this.width = +this.d3SVG.attr("width") - this.margin.left - this.margin.right;
         this.height = +this.d3SVG.attr("height") - this.margin.top - this.margin.bottom;
-        console.log(d3.extent(lineData.data, (d) => d.date));
         this.x = d3.scaleTime().rangeRound([0, this.width]).domain(d3.extent(lineData.data, (d) => d.date));
         this.y = d3.scaleLinear().rangeRound([this.height, 0]).domain(this.props.lineData.domainY);
         this.yAxis = d3.axisLeft().scale(this.y).ticks(8);
@@ -76,7 +76,7 @@ class D3LineChart extends React.Component {
         return (
             <div className="chart">
                 <h4>{this.props.lineData.name}</h4>
-                <svg width="490" height="300" ref={(svg) =>  {
+                <svg width="470" height="300" ref={(svg) =>  {
                     this.svg = svg
                     this.d3SVG = d3.select(this.svg)
                 }}></svg>
@@ -87,7 +87,7 @@ class D3LineChart extends React.Component {
 
 function groupCreatedOn(dataWithCreatedOnAttribute) {
     return dataWithCreatedOnAttribute.reduce((coll, data) => {
-        var key = moment(data.createdOn).format('YYYYMMDDHHmm');
+        var key = moment(data.sentAt).format('YYYYMMDDHHmm');
 
         if (key in coll) {
             coll[key] += 1;
@@ -122,8 +122,25 @@ class Errors extends React.Component {
 
         return (
             <div className="well bs-component">
-                <h4>Errors</h4>
+                <h3>Errors</h3>
                 {errors}
+            </div>
+        )
+    }
+}
+
+class NotificationsSent extends React.Component {
+    render() {
+        var sentNotifications = this.props.notifications.map((notification) => {
+            return (<Notification key={notification.id} notification={Object.assign({}, JSON.parse(notification.sentNotificationJson), {sentAt: notification.sentAt})} />)
+        });
+
+        return (
+            <div className="well bs-component notifications-sent">
+                <h3>Sent Notifications</h3>
+                <div className="notifications-list">
+                    {sentNotifications}
+                </div>
             </div>
         )
     }
@@ -148,7 +165,8 @@ class Dashboard extends React.Component {
                 color: "red",
                 data: []
             },
-            errors: []
+            errors: [],
+            notifications: []
         }
     }
 
@@ -163,11 +181,24 @@ class Dashboard extends React.Component {
                     </div>
                 </div>
                 <div className="container">
-                    <D3LineChart lineData={this.state.sentChartData} />
-                    <D3LineChart lineData={this.state.errorsChartData} />
+                    <div className="row">
+                        <div className="col-xs-6">
+                            <D3LineChart lineData={this.state.sentChartData} />
+                        </div>
+                        <div className="col-xs-6">
+                            <D3LineChart lineData={this.state.errorsChartData} />
+                        </div>
+                    </div>
                 </div>
                 <div className="container">
-                    <Errors errors={this.state.errors} />
+                    <div className="row">
+                        <div className="col-xs-6">
+                            <NotificationsSent notifications={this.state.notifications.slice(0, 5)} />
+                        </div>
+                        <div className="col-xs-6">
+                            <Errors errors={this.state.errors.slice(0, 5)} />
+                        </div>
+                    </div>
                 </div>
             </div>
         )
@@ -207,7 +238,8 @@ class Dashboard extends React.Component {
                         color: "red",
                         data: errorsChart
                     },
-                    errors: resp.errors
+                    errors: resp.errors,
+                    notifications: resp.notifications
                 })
             });
 

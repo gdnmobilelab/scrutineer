@@ -43,7 +43,8 @@ function dbRowToNotificationData(dbRow) {
         },
         percentageOfPrecinctsReporting: dbRow.percent_precincts_reporting_percentage,
         statesCalled: dbRow.num_states_called,
-        sentNotificationJson: dbRow.sent_notification_json
+        sentNotificationJson: dbRow.sent_notification_json,
+        notificationDataJson: dbRow.notification_data_json
     }
 }
 
@@ -55,7 +56,11 @@ function dbRowToModifications(dbRow) {
         line2: dbRow.line2,
         line3: dbRow.line3,
         line4: dbRow.line4,
-        line5: dbRow.line5,
+        iOSCollapsed1: dbRow.iOSCollapsed1,
+        iOSCollapsed2: dbRow.iOSCollapsed2,
+        androidCollapsed1: dbRow.androidCollapsed1,
+        clintonAvatar: dbRow.clinton_avatar,
+        trumpAvatar: dbRow.trump_avatar,
         buzzOnce: dbRow.buzz_once,
         createdOn: dbRow.created_on
     }
@@ -117,7 +122,7 @@ module.exports = {
     },
     //Returns: whether or not notification should buzz
     saveSentNotification(id, notificationData, notification, notificationModificationId) {
-        return query('call p_CreateSentNotification(?, ?, ?, ?, ?, ?, ?, ?, ?)', [
+        return query('call p_CreateSentNotification(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)', [
                 id,
                 notificationData.CLINTON.electoralVotes,
                 notificationData.TRUMP.electoralVotes,
@@ -125,6 +130,7 @@ module.exports = {
                 notificationData.TRUMP.popularVotePercentage,
                 notificationData.percentageOfPrecinctsReporting,
                 notificationData.statesCalled.length,
+                JSON.stringify(notificationData),
                 JSON.stringify(notification),
                 notificationModificationId
             ]).then((rowResult) => {
@@ -146,22 +152,26 @@ module.exports = {
         })
     },
     saveNotificationModification: function(notificationModificationData) {
-        return query('call p_CreateNotificationModification(?, ?, ?, ?, ?, ?, ?, ?)', [
+        return query('call p_CreateNotificationModification(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)', [
             notificationModificationData.id,
             notificationModificationData.title,
             notificationModificationData.line1,
             notificationModificationData.line2,
             notificationModificationData.line3,
             notificationModificationData.line4,
-            notificationModificationData.line5,
+            notificationModificationData.iOSCollapsed1,
+            notificationModificationData.iOSCollapsed2,
+            notificationModificationData.androidCollapsed1,
+            notificationModificationData.clintonAvatar,
+            notificationModificationData.trumpAvatar,
             notificationModificationData.buzzOnce
         ]);
     },
-    getSentNotificationsAndNotificationModification() {
-        return query('call p_GetSentNotificationsAndModification()', []).then((rowResult) => {
+    getNotificationModificationAndLastSent: function() {
+        return query('call p_GetNotificationModificationAndLastSent()', []).then((rowResult) => {
             return {
-                notifications: rowResult[0].map(dbRowToNotificationData),
-                modifications: typeof rowResult[1][0] === 'undefined' ? null : rowResult[1][0]
+                modifications: rowResult[0][0] ? dbRowToModifications(rowResult[0][0]) : null,
+                notification: rowResult[1][0] ? dbRowToNotificationData(rowResult[1][0]) : null
             }
         })
     },
@@ -172,12 +182,7 @@ module.exports = {
         console.log(date);
         return query('call p_GetNotificationsSentAndErrors(?)', [date]).then((rowResult) => {
             return {
-                notifications: rowResult[0].map((notification) => {
-                    return {
-                        id: notification.id,
-                        createdOn: notification.created_on,
-                    }
-                }),
+                notifications: rowResult[0].map(dbRowToNotificationData),
                 errors: rowResult[1].map((error) => {
                     return {
                         id: error.id,

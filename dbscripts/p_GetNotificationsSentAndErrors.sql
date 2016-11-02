@@ -5,7 +5,7 @@ DELIMITER $$
 
     BEGIN
 
-        select id, created_on
+        select *
             from sent_notifications where created_on >= p_since order by created_on DESC;
 
         call p_GetNotificationErrors(p_since);
